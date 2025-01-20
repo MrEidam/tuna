@@ -15,11 +15,12 @@
 #include <sys/types.h>
 #include <termios.h>
 #include <time.h>
+#include <math.h>
 #include <unistd.h>
 
 /* Defines */
 
-#define TUNA_VERSION "0.1.0"
+#define TUNA_VERSION "0.1.4"
 #define TUNA_TAB_STOP 8
 #define TUNA_QUIT_TIMES 3
 
@@ -93,23 +94,95 @@ struct editorConfig{
 
 struct editorConfig E;
 
+/* Selecting Stage */
+/*
+struct selection{
+	int start_row;
+	int start_col;
+	int end_row;
+	int end_col;
+	int active;
+	char *text;
+};
+
+struct selection sel = {0, 0, 0, 0, 0, NULL};
+*/
 /* Filetypes */
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
 char *C_HL_keywords[] = {
-    "switch", "if", "while", "for", "break", "continue", "return", "else",
-    "struct", "union", "typedef", "static", "enum", "class", "case",
+    "switch", "if", "while", "for", "break", "continue", "return", "else", "sizeof", "default", "do", "extern",
+    "struct", "union", "typedef", "static", "enum", "class", "case", "template", "operator", "goto",
 
-    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|", 
-    "void|", NULL
+    "#define|", "#include|", "#if|", "#ifdef|", "#ifndef|", "#else|", "#endif|", "#undef|", "#pragma|", "#error|", "#line|",
+
+    "int|", "long|", "double|", "const|", "float|", "char|", "unsigned|", "signed|", "auto|", "short|",
+    "void|", "time_t|", "NULL|", NULL
+};
+
+char *PY_HL_extensions[] = {".py", ".by", NULL};
+char *PY_HL_keywords[] = {
+    "False|", "None|", "True|", "and|", "as|", "assert|", "async|", "await|", "break|", 
+    "class|", "continue|", "def|", "del|", "elif|", "else|", "except|", "finally|", 
+    "for|", "from|", "global|", "if|", "import|", "in|", "is|", "lambda|", "nonlocal|", 
+    "not|", "or|", "pass|", "raise|", "return|", "try|", "while|", "with|", "yield|",
+
+    "abs", "all", "any", "ascii", "bin", "bool", "bytearray", "bytes", "callable", "chr", "classmethod",
+    "compile", "complex", "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec", "filter",
+    "float", "format", "frozenset", "getattr", "globals", "hasattr", "hash", "help", "hex", "id", "input",
+    "int", "isinstance", "issubclass", "iter", "len", "list", "locals", "map", "max", "memoryview", "min",
+    "next", "object", "oct", "open", "ord", "pow", "print", "property", "range", "repr", "reversed", "round",
+    "set", "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super", "tuple", "type", "vars", "zip", NULL
+};
+
+char *ASM_HL_extensions[] = {".asm",NULL};
+char *ASM_HL_keywords[] = {
+    "section|", "segment|", "global|", "extern|", "db|", "dw|", "dd|", "dq|", "resb|", "resw|", "resd|", "resq|", "equ|", "times|", "org|",
+
+    "eax|", "ebx|", "ecx|", "edx|", "esi|", "edi|", "esp|", "ebp|", "rax|", "rbx|", "rcx|", "rdx|", "rsi|", "rdi|", "rsp|", "rbp|",
+    "ax|", "bx|", "cx|", "dx|", "si|", "di|", "sp|", "bp|", "ah|", "al|", "bh|", "bl|", "ch|", "cl|", "dh|", "dl|",
+    "cs|", "ds|", "ss|", "es|", "fs|", "gs|", "mm0|", "mm1|", "mm2|", "mm3|", "mm4|", "mm5|", "mm6|", "mm7|",
+    "xmm0|", "xmm1|", "xmm2|", "xmm3|", "xmm4|", "xmm5|", "xmm6|", "xmm7|", "ymm0|", "ymm1|", "ymm2|", "ymm3|",
+    "ymm4|", "ymm5|", "ymm6|", "ymm7|", "zmm0|", "zmm1|", "zmm2|", "zmm3|", "zmm4|", "zmm5|", "zmm6|", "zmm7|",
+
+    "align|", "bits|", "use16|", "use32|", "use64|", "if|", "else|", "endif|", "while|", "macro|", "endm|",
+
+    "mov|", "movzx|", "movsx|", "push|", "pop|", "xchg|", "xlat|", "in|", "out|", "lea|", "lahf|", "sahf|", "add|", "sub|", "mul|", "imul|", "div|", "idiv|",
+    "inc|", "dec|", "adc|", "sbb|", "neg|", "cmp|", "and|", "or|", "xor|", "not|", "shl|", "shr|", "sal|", "sar|", "rol|", "ror|", "rcl|", "rcr|",
+    "jmp|", "call|", "ret|", "je|", "jne|", "jg|", "jl|", "jge|", "jle|", "ja|", "jb|", "jbe|", "jae|",
+    "loop|", "loopz|", "loope|", "loopnz|", "loopne|", "movs|", "stos|", "lods|", "scas|", "cmps|",
+    "int|", "iret|", "iretq|", "cli|", "sti|", "hlt|", "nop|", "syscall|", "sysret|", "invd|", "wbinvd|",
+    "clc|", "stc|", "cmc|", "cpuid|", "rdtsc|", "rdmsr|", "wrmsr|",
+
+    "fld|", "fst|", "fstp|", "fadd|", "fsub|", "fmul|", "fdiv|", "fsqrt|", "fabs|", "fchs|",
+
+    "r0|", "r1|", "r2|", "r3|", "r4|", "r5|", "r6|", "r7|", "r8|", "r9|", "r10|", "r11|", "r12|", "sp|", "lr|", "pc|",
+    "ldr|", "str|", "mov|", "mvn|", "add|", "sub|", "mul|", "mla|", "and|", "orr|", "eor|", "bic|",
+    "cmp|", "cmn|", "tst|", "teq|", "b|", "bl|", "bx|", "push|", "pop|",
+
+    "$zero|", "$at|", "$v0|", "$v1|", "$a0|", "$a1|", "$a2|", "$a3|", "$t0|", "$t1|", "$t2|", "$t3|", "$t4|", "$t5|", "$t6|", "$t7|", "$t8|", "$t9|",
+    "$s0|", "$s1|", "$s2|", "$s3|", "$s4|", "$s5|", "$s6|", "$s7|", "$sp|", "$fp|", "$ra|",
+    "lw|", "sw|", "lb|", "sb|", "add|", "addi|", "sub|", "mult|", "div|", "and|", "or|", "nor|", "xor|", "beq|", "bne|", "j|", "jal|", NULL
 };
 
 struct editorSyntax HLDB[] = {
     {
-        "c",
+        "C",
         C_HL_extensions,
 	C_HL_keywords,
 	"//", "/*", "*/",
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+    },{
+        "Python",
+        PY_HL_extensions,
+        PY_HL_keywords,
+        "#", "'''", "'''",
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+    },{
+        "Assembly",
+        ASM_HL_extensions,
+        ASM_HL_keywords,
+        ";", ";", ";",
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
     },
 };
@@ -210,13 +283,16 @@ int getCursorPosition(int *rows, int *cols){
 
     while(i < sizeof(buf) - 1){
         if(read(STDIN_FILENO, &buf[i], 1) != 1) break;
-        if(buf[i] == "R") break;
+        if(buf[i] == 'R') break;
         i++;
     }
     buf[i] = '\0';
 
     if(buf[0] != '\x1b' || buf[1] != '[') return -1;
     if(sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+    int max_lines = E.numrows;
+    int max_digits = max_lines > 0 ? (int)log10(max_lines) + 1 : 1;
+    *cols -= (max_digits + 1);
 
     return 0;
 }
@@ -356,15 +432,31 @@ void editorUpdateSyntax(erow *row){
 int editorSyntaxToColor(int hl){
     switch(hl){
 	case HL_COMMENT:
-	case HL_MLCOMMENT: return 36;
-	case HL_KEYWORD1: return 33;
-	case HL_KEYWORD2: return 32;
-        case HL_STRING: return 35;
-        case HL_NUMBER: return 31;
-        case HL_MATCH: return 34;
-        default: return 37;
+	case HL_MLCOMMENT: return 91;	// 36 - Cyan
+	case HL_KEYWORD1: return 93;	// 33 - Yellow
+	case HL_KEYWORD2: return 94;	// 32 - Green
+        case HL_STRING: return 31;	// 35 - Magenta
+        case HL_NUMBER: return 96;	// 31 - Red
+        case HL_MATCH: return 34;	// 34 - Blue
+        default: return 37;		// 37 - White
     }
 }
+
+/*/
+	COLORS LIST
+	- 30 - Black
+	- 31 - Red
+	- 32 - Green
+	- 33 - Yellow ( shitty )
+	- 34 - Blue
+	- 35 - Magenta
+	- 36 - Cyan
+	- 37 - White
+
+	BOLD COLOR LIST
+	- 90 - 97 - Same color (better sometimes) but bold
+/*/
+
 
 void editorSelectSyntaxHighlight(){
     E.syntax = NULL;
@@ -722,6 +814,14 @@ void editorScroll(){
     if(E.cy < E.numrows){
         E.rx = editorRowCxToRx(&E.row[E.cy], E.cx);
     }
+    
+    int max_lines = E.numrows;
+    int max_digits = max_lines > 0 ? (int)log10(max_lines) + 1 : 1;
+    int line_number_width = max_digits + 1;
+
+    if(E.rx + line_number_width < E.coloff){
+	E.rx = E.coloff - line_number_width + 1;
+    }
 
     if(E.cy < E.rowoff){
         E.rowoff = E.cy;
@@ -739,8 +839,13 @@ void editorScroll(){
 
 void editorDrawRows(struct abuf *ab){
     int y;
+    int max_lines = E.numrows;
+    int max_digits = max_lines > 0 ? (int)log10(max_lines) + 0 : 0;
+    max_digits += 1;
+    
     for(y = 0; y < E.screenrows; y++){
         int filerow = y + E.rowoff;
+        
         if(filerow >= E.numrows){
             if(E.numrows == 0 && y == E.screenrows/3){
                 char welcome[80];
@@ -757,6 +862,11 @@ void editorDrawRows(struct abuf *ab){
                 abAppend(ab, "~", 1);
             }
         }else{
+	    int line_number = filerow + 1;
+	    char line_number_str[16];
+	    snprintf(line_number_str, sizeof(line_number_str), "%*d ", max_digits, line_number);
+	    abAppend(ab, line_number_str, strlen(line_number_str));
+
             int len = E.row[filerow].rsize - E.coloff;
             if(len < 0) len = 0;
             if(len > E.screencols) len = E.screencols;
@@ -785,9 +895,9 @@ void editorDrawRows(struct abuf *ab){
                     int color = editorSyntaxToColor(hl[j]);
                     if(color != current_color){
                         current_color = color;
-                    char buf[16];
-                    int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
-                    abAppend(ab, buf, clen);
+	                char buf[16];
+ 	                int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+  	                abAppend(ab, buf, clen);
                     }
                     abAppend(ab, &c[j], 1);
                 }
@@ -803,7 +913,7 @@ void editorDrawStatusBar(struct abuf *ab){
     abAppend(ab, "\x1b[7m", 4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.filename ? E.filename : "[No Name]", E.numrows, E.dirty ? "(modified)" : "");
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", E.syntax ? E.syntax->filetype : "no ft", E.cy+1, E.numrows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", E.syntax ? E.syntax->filetype : "no known filetype", E.cy+1, E.numrows);
     if(len > E.screencols) len = E.screencols;
     abAppend(ab, status, len);
     while(len < E.screencols){
@@ -839,8 +949,12 @@ void editorRefreshScreen(){
     editorDrawStatusBar(&ab);
     editorDrawMessageBar(&ab);
 
+    int max_lines = E.numrows;
+    int max_digits = max_lines > 0 ? (int)log10(max_lines) + 1 : 1;
+    int line_number_width = max_digits + 1;
+
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + line_number_width + 1);
     abAppend(&ab, buf, strlen(buf));
 
     abAppend(&ab, "\x1b[?25h", 6);
@@ -899,9 +1013,12 @@ char *editorPrompt(char * prompt, void (*callback)(char *, int)){
 void editorMoveCursor(int key){
     erow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
 
+    int line_number_width = (int)log10(E.numrows) + 2;
+    int max_columns = E.screencols - line_number_width;
+
     switch(key){
         case ARROW_LEFT:
-            if(E.cx != 0){
+            if(E.cx > 0){
                 E.cx--;
             }else if(E.cy > 0){
                 E.cy--;
@@ -917,7 +1034,7 @@ void editorMoveCursor(int key){
             }
             break;
         case ARROW_UP:
-            if(E.cy != 0){
+            if(E.cy > 0){
                 E.cy--;
             }
             break;
@@ -933,14 +1050,51 @@ void editorMoveCursor(int key){
     if(E.cx > rowlen){
         E.cx = rowlen;
     }
+
+    if(E.cx + line_number_width > max_columns){
+        E.cx = max_columns - line_number_width;
+    }
 }
+
+void editorMoveSelection(int key){
+    switch(key){
+	case ARROW_LEFT:
+	    if(E.cx > 0) E.cx--;
+	    break;
+	case ARROW_RIGHT:
+	    if(E.cx < E.row[E.cy].size) E.cx++;
+	    break;
+	case ARROW_UP:
+	    if(E.cy > 0) E.cy--;
+	    break;
+	case ARROW_DOWN:
+	    if(E.cy < E.numrows - 1) E.cy++;
+	    break;
+    }
+    // sel.end_row = E.cy;
+    // sel.end_col = E.cx;
+}
+
+//#define CTRL_SPACE 32
 
 void editorProcessKeypress(){
     static int quit_times = TUNA_QUIT_TIMES;
-
     int c = editorReadKey();
 
     switch(c){
+        
+	// case CTRL_SPACE:
+	//     sel.active = 1;
+	//     sel.start_row = E.cy;
+	//     sel.start_col = E.cx;
+	//     break;
+
+	// case CTRL_KEY('v'):
+	//     if(sel.active){
+	// 	editorInsertChar(sel.text);
+	//     }
+	//     break;
+
         case '\r':
             editorInsertNewLine();
             break;
@@ -999,7 +1153,11 @@ void editorProcessKeypress(){
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-            editorMoveCursor(c);
+	    // if(sel.active){
+		// editorMoveSelection(c);
+	    // }else{
+		editorMoveCursor(c);
+	    // }
             break;
 
         case CTRL_KEY('l'):
