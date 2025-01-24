@@ -20,8 +20,8 @@
 
 /* Defines */
 
-#define TUNA_VERSION "0.1.4"
-#define TUNA_TAB_STOP 8
+#define TUNA_VERSION "0.1.9"
+#define TUNA_TAB_STOP 4
 #define TUNA_QUIT_TIMES 3
 
 #define CTRL_KEY(k) ((k) & 0x1f) 
@@ -45,6 +45,7 @@ enum editorHighlight{
     HL_MLCOMMENT,
     HL_KEYWORD1,
     HL_KEYWORD2,
+	HL_KEYWORD3,
     HL_STRING,
     HL_NUMBER,
     HL_MATCH,
@@ -94,30 +95,19 @@ struct editorConfig{
 
 struct editorConfig E;
 
-/* Selecting Stage */
-/*
-struct selection{
-	int start_row;
-	int start_col;
-	int end_row;
-	int end_col;
-	int active;
-	char *text;
-};
-
-struct selection sel = {0, 0, 0, 0, 0, NULL};
-*/
 /* Filetypes */
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
 char *C_HL_keywords[] = {
     "switch", "if", "while", "for", "break", "continue", "return", "else", "sizeof", "default", "do", "extern",
-    "struct", "union", "typedef", "static", "enum", "class", "case", "template", "operator", "goto",
+    "union", "typedef", "static", "enum", "case", "template", "operator", "goto",
+
+	"class$", "struct$",
 
     "#define|", "#include|", "#if|", "#ifdef|", "#ifndef|", "#else|", "#endif|", "#undef|", "#pragma|", "#error|", "#line|",
 
     "int|", "long|", "double|", "const|", "float|", "char|", "unsigned|", "signed|", "auto|", "short|",
-    "void|", "time_t|", "NULL|", NULL
+    "void|", "time_t|", "size_t|", "ssize_t|", "NULL|", "erow", NULL
 };
 
 char *PY_HL_extensions[] = {".py", ".by", NULL};
@@ -137,32 +127,64 @@ char *PY_HL_keywords[] = {
 
 char *ASM_HL_extensions[] = {".asm",NULL};
 char *ASM_HL_keywords[] = {
-    "section|", "segment|", "global|", "extern|", "db|", "dw|", "dd|", "dq|", "resb|", "resw|", "resd|", "resq|", "equ|", "times|", "org|",
+    // Registers
+    
+    "al$", "ah$", "bl$", "bh$", "cl$", "ch$", "dl$", "dh$",
+    "sil$", "dil$", "bpl$", "spl$", "r8b$", "r9b$", "r10b$", "r11b$", "r12b$", "r13b$", "r14b$", "r15b$",
+    "ax$", "bx$", "cx$", "dx$", "si$", "di$", "bp$", "sp$", "r8w$", "r9w$", "r10w$", "r11w$", "r12w$", "r13w$", "r14w$", "r15w$",
+    "eax$", "ebx$", "ecx$", "edx$", "esi$", "edi$", "ebp$", "esp$", "r8d$", "r9d$", "r10d$", "r11d$", "r12d$", "r13d$", "r14d$", "r15d$",
+    "rax$", "rbx$", "rcx$", "rdx$", "rsi$", "rdi$", "rbp$", "rsp$", "r8$", "r9$", "r10$", "r11$", "r12$", "r13$", "r14$", "r15$",
+    "mm0$", "mm1$", "mm2$", "mm3$", "mm4$", "mm5$", "mm6$", "mm7$",
+    "xmm0$", "xmm1$", "xmm2$", "xmm3$", "xmm4$", "xmm5$", "xmm6$", "xmm7$", "xmm8$", "xmm9$", "xmm10$", "xmm11$", "xmm12$", "xmm13$", "xmm14$", "xmm15$",
+    "ymm0$", "ymm1$", "ymm2$", "ymm3$", "ymm4$", "ymm5$", "ymm6$", "ymm7$", "ymm8$", "ymm9$", "ymm10$", "ymm11$", "ymm12$", "ymm13$", "ymm14$", "ymm15$",
+    "zmm0$", "zmm1$", "zmm2$", "zmm3$", "zmm4$", "zmm5$", "zmm6$", "zmm7$", "zmm8$", "zmm9$", "zmm10$", "zmm11$", "zmm12$", "zmm13$", "zmm14$", "zmm15$",
+    "k0$", "k1$", "k2$", "k3$", "k4$", "k5$", "k6$", "k7$",
+    "st0$", "st1$", "st2$", "st3$", "st4$", "st5$", "st6$", "st7$",
+    "cr0$", "cr2$", "cr3$", "cr4$", "cr8$",
+    "dr0$", "dr1$", "dr2$", "dr3$", "dr6$", "dr7$",
+    "cs$", "ds$", "es$", "fs$", "gs$", "ss$",
+    "rip$", "eflags$",
 
-    "eax|", "ebx|", "ecx|", "edx|", "esi|", "edi|", "esp|", "ebp|", "rax|", "rbx|", "rcx|", "rdx|", "rsi|", "rdi|", "rsp|", "rbp|",
-    "ax|", "bx|", "cx|", "dx|", "si|", "di|", "sp|", "bp|", "ah|", "al|", "bh|", "bl|", "ch|", "cl|", "dh|", "dl|",
-    "cs|", "ds|", "ss|", "es|", "fs|", "gs|", "mm0|", "mm1|", "mm2|", "mm3|", "mm4|", "mm5|", "mm6|", "mm7|",
-    "xmm0|", "xmm1|", "xmm2|", "xmm3|", "xmm4|", "xmm5|", "xmm6|", "xmm7|", "ymm0|", "ymm1|", "ymm2|", "ymm3|",
-    "ymm4|", "ymm5|", "ymm6|", "ymm7|", "zmm0|", "zmm1|", "zmm2|", "zmm3|", "zmm4|", "zmm5|", "zmm6|", "zmm7|",
+    // Instructions
 
-    "align|", "bits|", "use16|", "use32|", "use64|", "if|", "else|", "endif|", "while|", "macro|", "endm|",
+    "mov|", "add|", "sub|", "mul|", "imul|", "div|", "idiv|", "inc|", "dec|",
+    "and|", "or|", "xor|", "not|", "neg|", "shl|", "shr|", "sal|", "sar|", "rol|", "ror|",
+    "cmp|", "test|", "jmp|", "je|", "jne|", "jg|", "jge|", "jl|", "jle|", "ja|", "jae|", "jb|", "jbe|",
+    "call|", "ret|", "push|", "pop|", "lea|",
+    "nop|", "hlt|", "int|", "syscall|", "sysret|",
+    "cmovz|", "cmovnz|", "cmovg|", "cmovge|", "cmovl|", "cmovle|",
+    "sete|", "setne|", "setg|", "setge|", "setl|", "setle|",
+    "movzx|", "movsx|", "movaps|", "movups|", "movdqu|", "movdqa|",
+    "addps|", "subps|", "mulps|", "divps|", "sqrtps|",
+    "addpd|", "subpd|", "mulpd|", "divpd|", "sqrtpd|",
+    "pand|", "por|", "pxor|", "pandn|", "pslld|", "psrld|", "psrad|",
+    "prefetchnta|", "prefetcht0|", "prefetcht1|", "prefetcht2|",
+    "cvtsi2sd|", "cvtsi2ss|", "cvtss2sd|", "cvtsd2ss|",
+    "cvtdq2ps|", "cvtps2dq|", "cvttps2dq|",
+    "movq|", "movhpd|", "movlpd|",
+    "rdtsc|", "rdmsr|", "wrmsr|",
+    "lfence|", "sfence|", "mfence|",
+    "clflush|", "clflushopt|", "xchg|", "xadd|", "lock|",
+    "bt|", "bts|", "btr|", "btc|",
+    "test|", "popcnt|", "bsf|", "bsr|",
+    "paddb|", "paddw|", "paddd|", "paddq|", "pmuludq|", "psubb|", "psubw|", "psubd|", "psubq|",
+    "pause|", "crc32|", "rdrand|", "rdseed|",
 
-    "mov|", "movzx|", "movsx|", "push|", "pop|", "xchg|", "xlat|", "in|", "out|", "lea|", "lahf|", "sahf|", "add|", "sub|", "mul|", "imul|", "div|", "idiv|",
-    "inc|", "dec|", "adc|", "sbb|", "neg|", "cmp|", "and|", "or|", "xor|", "not|", "shl|", "shr|", "sal|", "sar|", "rol|", "ror|", "rcl|", "rcr|",
-    "jmp|", "call|", "ret|", "je|", "jne|", "jg|", "jl|", "jge|", "jle|", "ja|", "jb|", "jbe|", "jae|",
-    "loop|", "loopz|", "loope|", "loopnz|", "loopne|", "movs|", "stos|", "lods|", "scas|", "cmps|",
-    "int|", "iret|", "iretq|", "cli|", "sti|", "hlt|", "nop|", "syscall|", "sysret|", "invd|", "wbinvd|",
-    "clc|", "stc|", "cmc|", "cpuid|", "rdtsc|", "rdmsr|", "wrmsr|",
+    // Keywords
 
-    "fld|", "fst|", "fstp|", "fadd|", "fsub|", "fmul|", "fdiv|", "fsqrt|", "fabs|", "fchs|",
-
-    "r0|", "r1|", "r2|", "r3|", "r4|", "r5|", "r6|", "r7|", "r8|", "r9|", "r10|", "r11|", "r12|", "sp|", "lr|", "pc|",
-    "ldr|", "str|", "mov|", "mvn|", "add|", "sub|", "mul|", "mla|", "and|", "orr|", "eor|", "bic|",
-    "cmp|", "cmn|", "tst|", "teq|", "b|", "bl|", "bx|", "push|", "pop|",
-
-    "$zero|", "$at|", "$v0|", "$v1|", "$a0|", "$a1|", "$a2|", "$a3|", "$t0|", "$t1|", "$t2|", "$t3|", "$t4|", "$t5|", "$t6|", "$t7|", "$t8|", "$t9|",
-    "$s0|", "$s1|", "$s2|", "$s3|", "$s4|", "$s5|", "$s6|", "$s7|", "$sp|", "$fp|", "$ra|",
-    "lw|", "sw|", "lb|", "sb|", "add|", "addi|", "sub|", "mult|", "div|", "and|", "or|", "nor|", "xor|", "beq|", "bne|", "j|", "jal|", NULL
+    "entry", "global", "extern", "section", "segment", "org", "align", "db", "dw", "dd", "dq", "rb", "rw", "rd", "rq",
+    "resb", "resw", "resd", "resq",
+    "equ", "times", "struc", "endstruc", "macro", "endm", "repeat", "endrepeat", "while", "endw",
+    "if", "else", "elif", "endif", "define", "undef", "include", "incbin",
+    "import", "export", "stdcall", "fastcall", "cdecl",
+    "end", "use16", "use32", "use64",
+    "label", "default", "dup",
+    "flat", "public", "virtual", "common",
+    "int3", "sysenter", "sysexit", "iretq", "iret",
+    "bits", "org", "cpu", "model",
+    "proc", "endp", "data", "code",
+    "macro", "local", "ends", "group",
+    "format", "call", "jmp", "ret", "start", NULL
 };
 
 struct editorSyntax HLDB[] = {
@@ -194,6 +216,8 @@ struct editorSyntax HLDB[] = {
 void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
+void editorSavePrompt();
+char *editorPromptInput();
 
 /* Terminal */
 
@@ -342,81 +366,84 @@ void editorUpdateSyntax(erow *row){
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
-	if(scs_len && !in_string && !in_comment){
-	    if(!strncmp(&row->render[i], scs, scs_len)){
-		memset(&row->hl[i], HL_COMMENT, row->rsize - i);
-		break;
-	    }
-	}
-
-	if(mcs_len && mce_len && !in_string){
-	    if(in_comment){
-		row->hl[i] = HL_MLCOMMENT;
-		if(!strncmp(&row->render[i], mce, mce_len)){
-		    memset(&row->hl[i], HL_MLCOMMENT, mce_len);
-		    i += mce_len;
-		    in_comment = 0;
-		    prev_sep = 1;
-		    continue;
-		}else{
-		    i++;
-		    continue;
+		if(scs_len && !in_string && !in_comment){
+		    if(!strncmp(&row->render[i], scs, scs_len)){
+				memset(&row->hl[i], HL_COMMENT, row->rsize - i);
+				break;
+		    }
 		}
-	    }else if(!strncmp(&row->render[i], mcs, mcs_len)){
-		memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
-		i += mcs_len;
-		in_comment = 1;
-		continue;
-	    }
-	}
 
-	if(E.syntax->flags & HL_HIGHLIGHT_STRINGS){
-	    if(in_string){
-	        row->hl[i] = HL_STRING;
-		if(c == '\\' && i + 1 < row->rsize){
-		    row->hl[i + 1] = HL_STRING;
-		    i += 2;
-		    continue;
+		if(mcs_len && mce_len && !in_string){
+		    if(in_comment){
+				row->hl[i] = HL_MLCOMMENT;
+				if(!strncmp(&row->render[i], mce, mce_len)){
+				    memset(&row->hl[i], HL_MLCOMMENT, mce_len);
+				    i += mce_len;
+				    in_comment = 0;
+				    prev_sep = 1;
+				    continue;
+				}else{
+				    i++;
+				    continue;
+				}
+		    }else if(!strncmp(&row->render[i], mcs, mcs_len)){
+				memset(&row->hl[i], HL_MLCOMMENT, mcs_len);
+				i += mcs_len;
+				in_comment = 1;
+				continue;
+		    }
 		}
-		if(c == in_string) in_string = 0;
-		i++;
-		prev_sep = 1;
-		continue;
+
+		if(E.syntax->flags & HL_HIGHLIGHT_STRINGS){
+		    if(in_string){
+		        row->hl[i] = HL_STRING;
+			if(c == '\\' && i + 1 < row->rsize){
+			    row->hl[i + 1] = HL_STRING;
+			    i += 2;
+			    continue;
+			}
+			if(c == in_string) in_string = 0;
+			i++;
+			prev_sep = 1;
+			continue;
 	    }else{
-		if(c == '"' || c == '\''){
-		    in_string = c;
-		    row->hl[i] = HL_STRING;
-		    i++;
-		    continue;
-		}
+			if(c == '"' || c == '\''){
+			    in_string = c;
+			    row->hl[i] = HL_STRING;
+			    i++;
+			    continue;
+			}
 	    }
 	}
 
-        if(E.syntax->flags & HL_HIGHLIGHT_NUMBERS){
-            if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)){
-                row->hl[i] = HL_NUMBER;
-                i++;
-                prev_sep = 0;
-                continue;
-            }
+	if(E.syntax->flags & HL_HIGHLIGHT_NUMBERS){
+ 		if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)){
+			row->hl[i] = HL_NUMBER;
+            i++;
+            prev_sep = 0;
+            continue;
         }
+	}
 
 	if(prev_sep){
 	    int j;
 	    for(j = 0; keywords[j]; j++){
-		int klen = strlen(keywords[j]);
-		int kw2 = keywords[j][klen - 1] == '|';
-		if(kw2) klen--;
+			int klen = strlen(keywords[j]);
+			int kw2 = keywords[j][klen - 1] == '|';
+			if(kw2) klen--;
+			int kw3 = keywords[j][klen - 1] == '$';
+			if(kw3) klen--;
 
-		if(!strncmp(&row->render[i], keywords[j], klen) && is_separator(row->render[i + klen])){
-		    memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1, klen);
-		    i += klen;
-		    break;
-		}
+			if(!strncmp(&row->render[i], keywords[j], klen) && is_separator(row->render[i + klen])){
+			    memset(&row->hl[i], kw3 ? HL_KEYWORD3 : (kw2 ? HL_KEYWORD2 : HL_KEYWORD1) , klen);
+			    i += klen;
+		 		break;
+			}
 	    }
-	    if(keywords[j] != NULL){
-		prev_sep = 0;
-		continue;
+	    
+		if(keywords[j] != NULL){
+			prev_sep = 0;
+			continue;
 	    }
 	}
 
@@ -431,14 +458,15 @@ void editorUpdateSyntax(erow *row){
 
 int editorSyntaxToColor(int hl){
     switch(hl){
-	case HL_COMMENT:
-	case HL_MLCOMMENT: return 91;	// 36 - Cyan
-	case HL_KEYWORD1: return 93;	// 33 - Yellow
-	case HL_KEYWORD2: return 94;	// 32 - Green
-        case HL_STRING: return 31;	// 35 - Magenta
-        case HL_NUMBER: return 96;	// 31 - Red
-        case HL_MATCH: return 34;	// 34 - Blue
-        default: return 37;		// 37 - White
+		case HL_COMMENT:
+		case HL_MLCOMMENT: return 91;	// 36 - Cyan
+		case HL_KEYWORD1: return 93;	// 33 - Yellow
+		case HL_KEYWORD2: return 94;	// 32 - Green
+		case HL_KEYWORD3: return 32;
+        case HL_STRING: return 31;		// 35 - Magenta
+        case HL_NUMBER: return 96;		// 31 - Red
+        case HL_MATCH: return 34;		// 34 - Blue
+        default: return 37;				// 37 - White
     }
 }
 
@@ -640,6 +668,14 @@ void editorDelChar(){
     }
 }
 
+/* Delete */
+
+void editorClear(){
+	while(E.numrows > 0){
+		editorDelRow(E.numrows - 1);
+	}
+}
+
 /* File i/o */
 
 char *editorRowsToString(int *buflen){
@@ -662,13 +698,20 @@ char *editorRowsToString(int *buflen){
 }
 
 void editorOpen(char *filename){
-    free(E.filename);
+    if(E.dirty){
+		editorSavePrompt();
+		if(E.dirty) return;
+	}
+
+	free(E.filename);
     E.filename = strdup(filename);
 
     editorSelectSyntaxHighlight();
 
     FILE *fp = fopen(filename, "r");
     if(!fp) die("fopen");
+
+	editorClear();
 
     char *line = NULL;
     size_t linecap = 0;
@@ -712,6 +755,63 @@ void editorSave(){
     }
     free(buf);
     editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
+}
+
+/* Open Files */
+
+void editorOpenFileMenu(){
+	char *filename = editorPrompt("Open file: %s (ESC to cancel)", NULL);
+
+	if(!filename) return;
+
+	if(E.dirty){
+		editorSetStatusMessage("Unsaved changes detected. Save before opening a new file? (y/n)");
+		int c = editorReadKey();
+		if(c == 'y' || c == 'Y'){
+			editorSave();
+		}else if(c == 'n' || c == 'N'){
+			editorSetStatusMessage("Unsaved changes discarded.");
+		}else{
+			editorSetStatusMessage("Cancelled opening file.");
+			free(filename);
+			return;
+		}
+	}
+
+	editorOpen(filename);
+	free(filename);
+}
+
+char *editorPromptInput(){
+	size_t bufsize = 128;
+	char *buf = malloc(bufsize);
+	size_t buflen = 0;
+
+	while(1){
+		editorSetStatusMessage("%s", buf);
+		int c = editorReadKey();
+
+		if(c == '\r'){
+			if(buflen != 0){
+				buf[buflen] = '\0';
+				return buf;
+			}
+		}else if(!iscntrl(c) && c < 128){
+			if(buflen == bufsize - 1){
+				bufsize *= 2;
+				buf = realloc(buf, bufsize);
+			}
+			buf[buflen++] = c;
+		}
+	}
+}
+
+void editorSavePrompt(){
+	editorSetStatusMessage("You have unsaved changes. Save them? (y/n)");
+	int c = editorReadKey();
+	if(c == 'y' || c == 'Y'){
+		editorSave();
+	}
 }
 
 /* Find */
@@ -1081,20 +1181,7 @@ void editorProcessKeypress(){
     static int quit_times = TUNA_QUIT_TIMES;
     int c = editorReadKey();
 
-    switch(c){
-        
-	// case CTRL_SPACE:
-	//     sel.active = 1;
-	//     sel.start_row = E.cy;
-	//     sel.start_col = E.cx;
-	//     break;
-
-	// case CTRL_KEY('v'):
-	//     if(sel.active){
-	// 	editorInsertChar(sel.text);
-	//     }
-	//     break;
-
+    switch(c){       
         case '\r':
             editorInsertNewLine();
             break;
@@ -1110,9 +1197,17 @@ void editorProcessKeypress(){
             exit(0);
             break;
 
-        case CTRL_KEY('s'):
+        case CTRL_KEY('s'): // Saving
             editorSave();
             break;
+
+		case CTRL_KEY('o'): // Opening
+			if(E.dirty){
+				editorSetStatusMessage("Unsaved Changes! Save (CTRL-S) before opening another file.");
+				return;
+			}
+			editorOpenFileMenu();
+			break;
 
         case HOME_KEY:
             E.cx = 0;
@@ -1153,11 +1248,7 @@ void editorProcessKeypress(){
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-	    // if(sel.active){
-		// editorMoveSelection(c);
-	    // }else{
-		editorMoveCursor(c);
-	    // }
+			editorMoveCursor(c);
             break;
 
         case CTRL_KEY('l'):
