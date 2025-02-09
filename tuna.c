@@ -17,10 +17,13 @@
 #include <time.h>
 #include <math.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <libgen.h>
+#include <sys/stat.h>
 
 /* Defines */
 
-#define TUNA_VERSION "0.1.9"
+#define TUNA_VERSION "0.2.1"
 #define TUNA_TAB_STOP 4
 #define TUNA_QUIT_TIMES 3
 
@@ -99,10 +102,10 @@ struct editorConfig E;
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
 char *C_HL_keywords[] = {
-    "switch", "if", "while", "for", "break", "continue", "return", "else", "sizeof", "default", "do", "extern",
-    "union", "typedef", "static", "enum", "case", "template", "operator", "goto",
+    "switch", "free", "if", "while", "for", "break", "continue", "return", "else", "sizeof", "default", "do", "extern",
+    "typedef", "static", "enum", "case", "template", "operator", "goto", "system",
 
-	"class$", "struct$",
+	"class$", "struct$", "union$",
 
     "#define|", "#include|", "#if|", "#ifdef|", "#ifndef|", "#else|", "#endif|", "#undef|", "#pragma|", "#error|", "#line|",
 
@@ -697,19 +700,84 @@ char *editorRowsToString(int *buflen){
     return buf;
 }
 
-void editorOpen(char *filename){
-    if(E.dirty){
+char *expandTilde(const char *path){
+	if(path[0] == '~'){
+		const char *home = getenv("HOME");
+		if(!home){
+			struct passwd *pw = getpwuid(getuid());
+			if(pw){
+				home = pw->pw_dir;
+			}
+		}
+
+		if(home){
+			size_t len = strlen(home) + strlen(path);
+			char *expanded = malloc(len);
+			if(!expanded) return NULL;
+			snprintf(expanded, len, "%s%s", home, path + 1);
+			return expanded;
+		}else{
+			fprintf(stderr, "Could not determine home directory.");
+			return NULL;
+		}
+	}
+	return strdup(path);
+}
+
+void editorOpen(const char *filename){
+	if(E.dirty){
 		editorSavePrompt();
 		if(E.dirty) return;
 	}
 
-	free(E.filename);
-    E.filename = strdup(filename);
+	char *full_path;
+	struct stat file_stat;
 
-    editorSelectSyntaxHighlight();
+	char *expanded_path = expandTilde(filename);
+	if(!expanded_path){
+		editorSetStatusMessage("Failed to expand path");
+		return;
+	}
+	
+	if(E.filename && filename[0] == '~'){
+		char *base_dir = strdup(E.filename);
+		base_dir = dirname(base_dir); // Current file dir		
 
-    FILE *fp = fopen(filename, "r");
-    if(!fp) die("fopen");
+		size_t len = strlen(base_dir) + strlen(expanded_path) + 2;
+		full_path = malloc(len);
+		if(!full_path){
+			editorSetStatusMessage("Memory allocation failed");
+			free(base_dir);
+			free(expanded_path);
+			return;
+		}
+
+		/*snprintf*/editorSetStatusMessage(full_path, len, "%s/%s", base_dir, expanded_path);
+		free(base_dir);
+	}else{
+		full_path = strdup(expanded_path);
+	}
+
+	free(expanded_path);
+
+	// Does file exist?
+	if(stat(full_path, &file_stat) == -1){
+		FILE *fp = fopen(full_path, "w");
+		if(!fp){
+			free(full_path);
+			editorSetStatusMessage("Failed to create file");
+			return;
+		}
+		fclose(fp);
+	}
+
+	// Open the BOI
+	FILE *fp = fopen(full_path, "r");
+	if(!fp){
+		free(full_path);
+		editorSetStatusMessage("Failed to open file");
+		return;
+	}
 
 	editorClear();
 
@@ -718,13 +786,18 @@ void editorOpen(char *filename){
     ssize_t linelen;
     while((linelen = getline(&line, &linecap, fp)) != -1){
         while(linelen>0 && (line[linelen - 1] == '\n' ||
-                            line[linelen - 1] == '\r'))
+							line[linelen - 1] == '\r'))
             linelen--;
         editorInsertRow(E.numrows, line, linelen);
     }
     free(line);
     fclose(fp);
+
+	free(E.filename);
+	E.filename = full_path;
+
     E.dirty = 0;
+	editorSelectSyntaxHighlight();
 }
 
 void editorSave(){
@@ -757,29 +830,24 @@ void editorSave(){
     editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
+void editorChangeTitle(){
+	char *title = editorPrompt("Enter new title: %s (ESC to cancel)", NULL);
+	if(title){
+		printf("\033]0;%s\007", title);
+		fflush(stdout);
+		free(title);
+	}
+}
+
 /* Open Files */
 
 void editorOpenFileMenu(){
 	char *filename = editorPrompt("Open file: %s (ESC to cancel)", NULL);
 
-	if(!filename) return;
-
-	if(E.dirty){
-		editorSetStatusMessage("Unsaved changes detected. Save before opening a new file? (y/n)");
-		int c = editorReadKey();
-		if(c == 'y' || c == 'Y'){
-			editorSave();
-		}else if(c == 'n' || c == 'N'){
-			editorSetStatusMessage("Unsaved changes discarded.");
-		}else{
-			editorSetStatusMessage("Cancelled opening file.");
-			free(filename);
-			return;
-		}
+	if(filename){
+		editorOpen(filename);
+		free(filename);
 	}
-
-	editorOpen(filename);
-	free(filename);
 }
 
 char *editorPromptInput(){
@@ -883,6 +951,18 @@ void editorFind(){
         E.coloff = saved_coloff;
         E.rowoff = saved_coloff;
     }
+}
+
+/* Terminal */
+
+void editorTerminal(){
+	char *command = editorPrompt("Tuna~$: %s", NULL);
+
+	int comm = read(0, command, sizeof(command));
+	command[comm - 1] = 0;
+
+	system(command);
+	free(command); 
 }
 
 /* Append Buffer */
@@ -1209,6 +1289,14 @@ void editorProcessKeypress(){
 			editorOpenFileMenu();
 			break;
 
+		case CTRL_KEY('t'):	// Title change
+			editorChangeTitle();
+			break;
+
+		case CTRL_KEY('u'): // Terminal
+			editorTerminal();
+			break;
+
         case HOME_KEY:
             E.cx = 0;
             break;
@@ -1289,7 +1377,7 @@ int main(int argc, char *argv[]){
         editorOpen(argv[1]);
     }
 
-    editorSetStatusMessage("HELP: Ctrl+S = Save | Ctrl+Q = Quit | Ctrl+F = Search");
+    editorSetStatusMessage("HELP: Ctrl + (S)ave | (Q)uit | (F)ind | (O)pen | (T)itle | (U)Terminal");
 
     while(1){
         editorRefreshScreen();
